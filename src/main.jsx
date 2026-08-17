@@ -32,6 +32,9 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
+const BASE_PATH = import.meta.env.BASE_URL || './';
+const cleanBase = BASE_PATH.endsWith('/') ? BASE_PATH : `${BASE_PATH}/`;
+
 // Verification & Profile Links
 const PROFILE = {
   name: 'Shivamkumar Chandrakant Mantri',
@@ -43,8 +46,8 @@ const PROFILE = {
   location: 'Bhusawal, Maharashtra, India',
   linkedin: 'https://in.linkedin.com/in/shivamkumar-mantri-9bbaa7256',
   github: 'https://github.com/ShivamkumarMantri',
-  resumeUrl: '/Shivamkumar_Resume.pdf',
-  photoUrl: '/shivam-profile.jpg',
+  resumeUrl: `${cleanBase}Shivamkumar_Resume.pdf`,
+  photoUrl: `${cleanBase}shivam-profile.jpg`,
 };
 
 // SVG Icons for clean rendering without external dependency issues

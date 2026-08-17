@@ -90,14 +90,16 @@ function LinkedinIcon({ size = 18, className = '' }) {
   );
 }
 
-// 3D Tilt Card with Smooth 60fps Parallax & Cursor Spotlight Glare
-function TiltCard({ children, className = '', maxTilt = 7, scale = 1.02, glare = true, ...props }) {
+// High-Performance 60-120fps 3D Tilt Card (Direct GPU Transform, Zero Re-renders)
+function TiltCard({ children, className = '', maxTilt = 6, scale = 1.02, glare = true, ...props }) {
   const cardRef = useRef(null);
-  const [tiltStyle, setTiltStyle] = useState({});
-  const [glareStyle, setGlareStyle] = useState({ opacity: 0 });
+  const glareRef = useRef(null);
+  const rafRef = useRef(null);
 
   const handleMouseMove = (e) => {
+    if (window.matchMedia('(pointer: coarse)').matches) return;
     if (!cardRef.current) return;
+
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -107,32 +109,27 @@ function TiltCard({ children, className = '', maxTilt = 7, scale = 1.02, glare =
     const rotateX = (((y - centerY) / centerY) * -maxTilt).toFixed(2);
     const rotateY = (((x - centerX) / centerX) * maxTilt).toFixed(2);
 
-    setTiltStyle({
-      transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(${scale}, ${scale}, ${scale})`,
-      transition: 'transform 0.08s ease-out',
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      if (cardRef.current) {
+        cardRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(${scale}, ${scale}, ${scale})`;
+      }
+      if (glare && glareRef.current) {
+        const glareX = ((x / rect.width) * 100).toFixed(1);
+        const glareY = ((y / rect.height) * 100).toFixed(1);
+        glareRef.current.style.opacity = '0.24';
+        glareRef.current.style.background = `radial-gradient(circle at ${glareX}% ${glareY}%, rgba(212, 255, 63, 0.22) 0%, rgba(0, 242, 254, 0.12) 30%, transparent 65%)`;
+      }
     });
-
-    if (glare) {
-      const glareX = ((x / rect.width) * 100).toFixed(1);
-      const glareY = ((y / rect.height) * 100).toFixed(1);
-      setGlareStyle({
-        opacity: 0.28,
-        background: `radial-gradient(circle at ${glareX}% ${glareY}%, rgba(212, 255, 63, 0.28) 0%, rgba(255, 255, 255, 0.12) 30%, transparent 65%)`,
-        transition: 'opacity 0.15s ease',
-      });
-    }
   };
 
   const handleMouseLeave = () => {
-    setTiltStyle({
-      transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
-      transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-    });
-    if (glare) {
-      setGlareStyle({
-        opacity: 0,
-        transition: 'opacity 0.5s ease',
-      });
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (cardRef.current) {
+      cardRef.current.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+    }
+    if (glare && glareRef.current) {
+      glareRef.current.style.opacity = '0';
     }
   };
 
@@ -142,13 +139,46 @@ function TiltCard({ children, className = '', maxTilt = 7, scale = 1.02, glare =
       className={`tilt-card-wrapper ${className}`}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ ...tiltStyle, transformStyle: 'preserve-3d' }}
       {...props}
     >
       {children}
-      {glare && <div className="tilt-card-glare" style={glareStyle} aria-hidden="true" />}
+      {glare && <div ref={glareRef} className="tilt-card-glare" aria-hidden="true" />}
     </div>
   );
+}
+
+// Hardware-Accelerated Interactive Spotlight (Zero Main-Thread React Re-renders)
+function CursorSpotlight() {
+  const spotlightRef = useRef(null);
+
+  useEffect(() => {
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+
+    let rafId = null;
+    let targetX = -600;
+    let targetY = -600;
+
+    const onPointerMove = (e) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (spotlightRef.current) {
+            spotlightRef.current.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
+          }
+          rafId = null;
+        });
+      }
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  return <div ref={spotlightRef} className="cursor-spotlight" aria-hidden="true" />;
 }
 
 // Navigation structure
@@ -426,26 +456,10 @@ function App() {
     return true;
   });
 
-  // Cursor tracking for ambient interactive spotlight
-  const [cursorPos, setCursorPos] = useState({ x: -600, y: -600 });
-  useEffect(() => {
-    const handlePointerMove = (e) => {
-      setCursorPos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('pointermove', handlePointerMove, { passive: true });
-    return () => window.removeEventListener('pointermove', handlePointerMove);
-  }, []);
-
   return (
     <div className="app">
-      {/* Interactive Cursor Spotlight */}
-      <div
-        className="cursor-spotlight"
-        style={{
-          transform: `translate3d(${cursorPos.x}px, ${cursorPos.y}px, 0)`,
-        }}
-        aria-hidden="true"
-      />
+      {/* Interactive Cursor Spotlight (Zero Re-render GPU Transform) */}
+      <CursorSpotlight />
 
       {/* Background Floating Animated Gradient Blobs (60fps motion) */}
       <div className="blobs-wrapper" aria-hidden="true">
